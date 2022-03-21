@@ -37,9 +37,9 @@ class Lexer {
         this.col = 1;
         this.line = 1;
     }
-    addToken(type, value, col) {
+    addToken(type, value, col, len) {
         this.tokens.push({
-            type: type, value: value, line: this.line, col: col, len: this.col - col
+            type: type, value: value, line: this.line, col: col, len: len
         });
     }
     next(steps = 1) { this.index += steps; this.col += steps; this.cur = this.chars[this.index]; }
@@ -57,7 +57,7 @@ class Lexer {
                     buffer += this.cur;
                     this.next();
                 }
-                this.addToken("imbeded string", buffer, col);
+                this.addToken("string", buffer, col, buffer.length + 2);
                 this.next();
             }
             else if (this.cur.match(/[a-zA-Z_]/)) {
@@ -72,15 +72,15 @@ class Lexer {
                     case "fun":
                     case "if":
                     case "else":
-                        this.addToken("keyword", buffer, col);
+                        this.addToken("keyword", buffer, col, buffer.length);
                         break;
                     case "string":
                     case "number":
                     case "array":
-                        this.addToken("data type", buffer, col);
+                        this.addToken("data type", buffer, col, buffer.length);
                         break;
                     default:
-                        this.addToken("identifier", buffer, col);
+                        this.addToken("identifier", buffer, col, buffer.length);
                         break;
                 }
             }
@@ -90,32 +90,32 @@ class Lexer {
                     buffer += this.cur;
                     this.next();
                 }
-                this.addToken("number", buffer, col);
+                this.addToken("number", buffer, col, this.col - col);
             }
             else {
                 switch (this.cur) {
                     case '[':
-                        this.addToken("left brace", "[", this.col);
+                        this.addToken("left brace", "[", this.col, 1);
                         this.next();
                         break;
                     case ']':
-                        this.addToken("right brace", "]", this.col);
+                        this.addToken("right brace", "]", this.col, 1);
                         this.next();
                         break;
                     case '(':
-                        this.addToken("left paren", "(", this.col);
+                        this.addToken("left paren", "(", this.col, 1);
                         this.next();
                         break;
                     case ')':
-                        this.addToken("right paren", ")", this.col);
+                        this.addToken("right paren", ")", this.col, 1);
                         this.next();
                         break;
                     case ':':
-                        this.addToken("colon", ":", this.col);
+                        this.addToken("colon", ":", this.col, 1);
                         this.next();
                         break;
                     case ';':
-                        this.addToken("semi colon", ";", this.col);
+                        this.addToken("semi colon", ";", this.col, 1);
                         this.next();
                         break;
                     case ' ':
@@ -129,15 +129,15 @@ class Lexer {
                         break;
                     case '=': {
                         if (this.chars[this.index + 1] == ">") {
-                            this.addToken("arrow", "=>", this.col);
+                            this.addToken("arrow", "=>", this.col, 2);
                             this.next();
                         }
                         else if (this.chars[this.index + 1] == "=") {
-                            this.addToken("equal to", "==", this.col);
+                            this.addToken("equal to", "==", this.col, 2);
                             this.next();
                         }
                         else {
-                            this.addToken("assign", "=", this.col);
+                            this.addToken("assign", "=", this.col, 1);
                         }
                         this.next();
                         break;

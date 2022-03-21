@@ -1,0 +1,56 @@
+[
+    {
+        "type": "const-assignment",
+        "name": {
+            "type": "identifier",
+            "value": "name",
+            "line": 1,
+            "col": 5,
+            "len": 4
+        },
+        "data_type": {
+            "type": "data type",
+            "value": "string",
+            "line": 1,
+            "col": 11,
+            "len": 6
+        },
+        "value": {
+            "type": "string",
+            "value": "Max",
+            "line": 1,
+            "col": 20,
+            "len": 5
+        },
+        "line": 1,
+        "col": 1,
+        "len": 0
+    },
+    {
+        "type": "var-assignment",
+        "name": {
+            "type": "identifier",
+            "value": "age",
+            "line": 2,
+            "col": 5,
+            "len": 3
+        },
+        "data_type": {
+            "type": "data type",
+            "value": "number",
+            "line": 2,
+            "col": 10,
+            "len": 6
+        },
+        "value": {
+            "type": "number",
+            "value": "15",
+            "line": 2,
+            "col": 19,
+            "len": 2
+        },
+        "line": 2,
+        "col": 1,
+        "len": 0
+    }
+]

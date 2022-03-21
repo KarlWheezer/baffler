@@ -1,4 +1,6 @@
 import { Lexer } from "./lexer";
+import { Parser } from "./parser";
 
 let lexer = new Lexer("tests/main.baf");
-console.log(lexer.tokenize());
+let parser = new Parser(lexer);
+parser.parse();

@@ -1,0 +1,19 @@
+{
+  "dependencies": {
+    "@types/node": "^17.0.21",
+    "fs": "^0.0.1-security"
+  },
+  "name": "baffler",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "dev": "tsc -w"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

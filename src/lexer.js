@@ -57,7 +57,7 @@ class Lexer {
                     buffer += this.cur;
                     this.next();
                 }
-                this.addToken("imbeded string", buffer, col);
+                this.addToken("string", buffer, col);
                 this.next();
             }
             else if (this.cur.match(/[a-zA-Z_]/)) {

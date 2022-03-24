@@ -1,4 +1,5 @@
 import { Lexer } from "./lexer";
+import { Parser } from "./parser";
 
-let lexer = new Lexer("tests/main.baf");
-console.log(lexer.tokenize());
+const lexer = new Lexer("tests/main.baf");
+const parser = new Parser(lexer);

@@ -1,6 +1,2 @@
-set name: string = "Max";
-fun syaHi(name: string) => [
-    disp("Hello, #[name]")
-]
-
-syaHi(name);
+set name = "Max";
+var age = 15;

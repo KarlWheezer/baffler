@@ -1,19 +1,27 @@
 {
-  "dependencies": {
-    "@types/node": "^17.0.21",
-    "fs": "^0.0.1-security"
-  },
   "name": "baffler",
   "version": "1.0.0",
+  "description": "A transpiled language written in typescript that transpiles in vanilla js",
   "main": "index.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
-    "dev": "tsc -w"
+    "start": "tsc -w"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KarlWheezer/baffler.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "bugs": {
+    "url": "https://github.com/KarlWheezer/baffler/issues"
+  },
+  "homepage": "https://github.com/KarlWheezer/baffler#readme",
+  "dependencies": {
+    "@types/node": "^17.0.23",
+    "typescript": "^4.6.2"
+  }
 }

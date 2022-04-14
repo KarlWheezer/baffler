@@ -1,73 +1,96 @@
-import * as fs from 'fs';
+import fs from 'fs';
 
-export type token = {
-    type:  string,
-    value: string,
-    line:  number,
-    col:   number,
-    len:   number
+export enum token_type {
+    start,
+    identifier, keyword,
+    string, number,
+
+    left_brace,
+    right_brace,
+    left_paren,
+    right_paren,
+
+    assign,
+    arrow,
+    dot,
+    semi_colon,
+    comma,
+    undefined, EOF,
+    compare
 }
+
+export class token {
+    type: token_type; value: string; line: number; col: number; len: number;
+    constructor(type: token_type, value: string, line: number, col: number) {
+        this.type = type; this.value = value; this.line = line; this.col = col; this.len = this.value.length;
+    }
+    new() { return {type: this.type, value: this.value, pos: {line: this.line, col: this.col}, len: this.len}; }
+    toString() { return `${token_type[this.type].replace("_", " ")}` }
+}
+
 export class Lexer {
-    file_name: string; lines: string[]; chars: string[]; 
-    tokens: token[]; index: number; cur: string;
-    line: number; col: number;
-    constructor(file_name: string) {
-        this.file_name = file_name; this.index = 0; this.tokens = [];
-        let code = fs.readFileSync(this.file_name).toString().replace("\r", "");
-        this.lines = code.split("\n"); this.chars = code.split("");
-        this.cur = this.chars[this.index]; this.col = 1; this.line = 1;
+    filename: string; index: number = 0; line: number = 1; col: number = 1;
+    lines: string[]; cur: string; chars: string[]; tokens: token[];
+    constructor(filename: string) {
+        this.filename = filename; let content = fs.readFileSync(this.filename).toString(); this.tokens = [];
+        this.lines = content.split("\n"); this.chars = content.split(""); this.cur = this.chars[this.index];
     }
-    addToken(type: string, value: string, col: number) {
-        this.tokens.push({
-            type: type, value: value, line: this.line, col: col, len: this.col - col
-        });
+    add(type: token_type, value: string, col: number) {
+        const tok = new token(type, value, this.line, col);
+        this.tokens.push(tok);
     }
-    next(steps=1) { this.index += steps; this.col += steps; this.cur = this.chars[this.index]; }
-    tokenize() {
-        while (this.index < this.chars.length) {
-            let buffer: string = "";
-            if (this.cur == '\"') {
-                let col = this.col;
-                this.next(); while (this.cur != '\"') {
-                    if (this.cur == '\\') { buffer += '\\'; this.next(); }
-                    buffer += this.cur; this.next();
-                } this.addToken("string", buffer, col); this.next();
-            } else if (this.cur.match(/[a-zA-Z_]/)) {
-                let col = this.col;
-                while (this.cur.match(/[a-zA-Z_0-9]/)) { buffer += this.cur; this.next(); }
-                switch (buffer) {
-                    case "set": case "var": case "fun": case "if": case "else":
-                        this.addToken("keyword", buffer, col); break;
-                    case "string": case "number": case "array":
-                        this.addToken("data type", buffer, col); break;
-                    default: this.addToken("identifier", buffer, col); break;
-                }
-            } else if (this.cur.match(/[0-9]/)) {
-                let col = this.col;
-                while (this.cur.match(/[0-9]/) || this.cur == '.') { buffer += this.cur; this.next(); }
-                this.addToken("number", buffer, col)
-            } else {
-                switch (this.cur) {
-                    case '[': this.addToken("left brace",  "[", this.col); this.next(); break;
-                    case ']': this.addToken("right brace", "]", this.col); this.next(); break;
-                    case '(': this.addToken("left paren",  "(", this.col); this.next(); break;
-                    case ')': this.addToken("right paren", ")", this.col); this.next(); break;
-                    case ':': this.addToken("colon",       ":", this.col); this.next(); break;
-                    case ';': this.addToken("semi colon",  ";", this.col); this.next(); break;
-                    case ' ': this.next(); break;
-                    case '\r': break; case '\n': this.next(); this.col = 1; this.line += 1; break;
-                    case '=': {
-                        if (this.chars[this.index + 1] == ">") {
-                            this.addToken("arrow", "=>",   this.col); this.next();
-                        } else if (this.chars[this.index + 1] == "=") {
-                            this.addToken("equal to", "==", this.col); this.next();
-                        } else { this.addToken("assign", "=", this.col); 
-                        } this.next(); break;
-                    }
-                    default: console.log(`Unknown: ${JSON.stringify(this.cur)}`); this.next(); break;
-                }
+    next(steps: number = 1): undefined { 
+        this.index += steps; this.col += steps; this.cur = this.chars[this.index];
+        if (this.index >= this.chars.length) this.cur = '\0'; return;
+    }
+    tokenize() { let col = this.col;
+        if(this.cur.match(/[a-zA-Z_]/)) { let buffer: string = "";
+            while (this.cur.match(/[a-zA-Z_0-9]/)) { buffer += this.cur; this.next(); }
+            switch (buffer) { 
+                case "set": case "var": case "if": case "else": case "fun": this.add(token_type.keyword, buffer, col); break;
+                default: this.add(token_type.identifier, buffer, col); break;
             }
+        } else if (this.cur.match(/[0-9]/)) { let buffer: string = "";
+            while (this.cur.match(/[0-9]|\./)) { buffer += this.cur; this.next(); }
+            this.add(token_type.number, buffer, col);
+        } else if (this.cur === '"') { this.next(); let buffer: string = "";
+            while (this.cur !== '"') {
+                if (this.cur === '\\') { this.next(); buffer += this.cur; }
+                buffer += this.cur; this.next(); 
+            } this.next(); this.add(token_type.string, buffer, col+1);
+        } else if (this.cur === '\0') { return "EOF";
+        } else switch (this.cur) {
+            case "[": this.add(token_type.left_brace,  this.cur, col); this.next(); break;
+            case "]": this.add(token_type.right_brace, this.cur, col); this.next(); break;
+            case "(": this.add(token_type.left_paren,  this.cur, col); this.next(); break;
+            case ")": this.add(token_type.right_paren, this.cur, col); this.next(); break;
+            case ";": this.add(token_type.semi_colon,  this.cur, col); this.next(); break;
+            case ",": this.add(token_type.comma,       this.cur, col); this.next(); break;
+            case ">": case "<": { let bufr = this.cur;
+                if (this.chars[this.index + 1] === '=') bufr += this.cur; this.next();
+                this.add(token_type.compare, bufr, col); break;
+            }
+            case '=': {
+                if (this.chars[this.index + 1] === '>') { this.add(token_type.arrow,     "=>", col); this.next(2); break; }
+                if (this.chars[this.index + 1] === '=') { this.add(token_type.compare,   "==", col); this.next(2); break; }
+                this.add(token_type.assign, "=", col);
+            }
+            case ' ':  this.next();                                                 break; 
+            case '\n': this.next(); this.col = 1; this.line += 1;                   break;
+            default: console.log(JSON.stringify(this.cur)); this.next();            break;
         }
+    }
+    lex() { 
+        let chars = [];
+        for (let i of this.chars) { if (i !== '\r') chars.push(i); }
+        
+        this.chars = chars;let col = 0;
+        while (true) {
+            let addedToken = this.tokenize();
+            if (addedToken === "EOF") break;
+            col = this.tokens[this.tokens.length - 1].col;
+        }
+        this.add(token_type.EOF, '\0', this.lines[this.lines.length -1].length + 1);
         return this.tokens;
     }
 }

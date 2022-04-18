@@ -112,11 +112,12 @@ export class Parser {
 
         return { type: 're-assignment', name, value, line: name.line, col: name.col, len: this.prev.col - name.col }
     }
-    parse_expr() {
-        let left  = this.eat(null, t.number);
-        let op    = this.eat(null, t.operator);
-        let right = this.eat(null, t.number);
-
+    parse_expr() { let left: any = []; let op: any; let right: token;
+        while (this.next.type == t.operator) {
+            left.push(this.literal());
+            op.push(this.eat(null, t.operator));
+        }
+        right = this.literal();
         return { type: 'expression', left, operator: op, right, line: left.line, col: left.col }
     }
     parse_statement() { let statement: any;

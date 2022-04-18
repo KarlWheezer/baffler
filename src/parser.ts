@@ -1,144 +1,142 @@
-import fs from "fs";
-import { Lexer, token, token_type } from "./lexer";
+import { writeFileSync } from "fs";
+import { Lexer, token, t } from "./lexer";
 
 export class Parser {
-    lexer: Lexer; tokens: token[]; index: number; errors: number = 0;
-    prev: token; cur: token; next: token; statements: any[];
+    statements: any[]; lexer: Lexer; tokens: token[];
+    prev: token; cur: token; next: token;
+    index: number; errors: number;
     constructor(lexer: Lexer) {
-        this.lexer = lexer; this.tokens = this.lexer.lex(); this.index = 0;
-        this.statements = [];
-        this.prev = this.tokens[this.index    ];
-        this.cur  = this.tokens[this.index    ];
-        this.next = this.tokens[this.index + 1];
+        this.lexer = lexer; this.statements = []; this.tokens = lexer.lex(); this.index = 0;
+        this.prev = this.tokens[this.index]; this.errors = 1;
+        this.cur  = this.tokens[this.index];
+        this.next = this.tokens[this.index + 1]; 
     }
-    go(steps: number = 1) { this.index += steps;
-        this.prev = this.tokens[this.index - 1];
-        this.cur  = this.tokens[this.index    ];
-        this.next = this.tokens[this.index + 1];
+    advance(steps: number = 1) { this.index += steps;
+        this.prev = this.tokens[this.index - 1]; 
+        this.cur  = this.tokens[this.index];
+        this.next = this.tokens[this.index + 1]; 
     }
-    error(value: string | null, types: token_type[], cur: token = this.cur, top: string = `Unexpected token`) {
-        let i = 0; let str: string | [] = "";
-        while (i < cur.col - 1) { i ++; str += " "} str += "\x1b[31m^";
-        i = 0; while (i < cur.len - 1) { i ++; str += "~" } str += "\x1b[0m"
+    error(top: string, value: string | null, current: token, ...types: t[]) {
+        let i=0; let buffer = ""; while (i < current.col - 1) { buffer += " "; i ++; } buffer += "^";
+        i = 0; while (i < current.len - 1) { buffer += "~"; i ++; }
 
-        let error = [ `\x1b[31mError\x1b[0m: ${top} ---> \x1b[4m${this.lexer.filename}\x1b[0m[${cur.line}:${cur.col}]`,
-                      `\x1b[32m${cur.line} | \x1b[0m ${this.lexer.lines[cur.line - 1]}`,
-                      `\x1b[32m${String(cur.line).replace(/^[0-9]/, " ")} | \x1b[0m ${str} Unexpected ${this.cur.toString()} token wanted a token` ];
-        let str_: string[] = []; types.forEach(type => { str_.push(token_type[type]) });
-        error[error.length - 1] += ` matching [ ${str_.join(", ")} ]`;
+        let msg = [
+            `\x1b[31mError\x1b[0m: ${top} -> ${this.lexer.filename}[${current.line}:${current.col}]`,
+            `\x1b[36m${current.line} |\x1b[0m ${this.lexer.content.split("\n")[current.line - 1]}`,
+            `${String(current.line).replace(/^[0-9]*/, " ")} \x1b[36m|\x1b[0m ${buffer} Unexpected ${t[current.type]}, wanted a token matching`
+        ]; 
 
-        if (value !== null) error[error.length - 1] += ` with value ${value}`;
+        let str: string[] = []; types.forEach(v => str.push(t[v]));
+        msg[msg.length -1] += ` [ ${str.join(", ")} ]`;
+        if (value != null) msg[msg.length - 1] += ` with value '${value}'`
 
-        console.log(error.join("\n")); this.errors += 1;
+        console.log(msg.join("\n")); this.errors += 1; this.advance();
     }
-    eat(value: null | string, ...types: token_type[]) {
-        if (this.index >= this.tokens.length) { 
-            this.error(value, types, this.prev, 'Unexpected end of file'); 
-            process.exit(1); 
+    eat(value: string | null, ...types: t[]) {
+        if (this.index >= this.tokens.length || this.cur.type == t.EOF) { this.error(`Unexpected end of file`, value, this.cur, ...types); process.exit(1); }
+
+        if (value != null) { for (let i=0; i < types.length; i ++) if (this.cur.value == value && this.cur.type == types[i]) { this.advance(); return this.prev; } }
+        if (value == null) { for (let i=0; i < types.length; i ++) if ( this.cur.type == types[i]) { this.advance(); return this.prev; } }
+
+        this.error(`Unexpected ${this.cur.toString()} token`, value, this.cur, ...types);
+        this.advance(); return this.prev;
+    }
+    literal(): any { let literals = [t.identifier, t.string, t.number];
+        if (this.cur.type == t.identifier && this.next.type == t.l_paren) { return this.parse_fun_call(); 
+        } else if (this.cur.value == '[') { return { type: 'array', value: this.parse_list("]"), line: this.prev.line, col: this.prev.line }
+        } else if (this.next.type == t.operator) { return this.parse_expr();
+        } else if (literals.includes(this.cur.type)) { return this.eat(null, ...literals); 
+        } else if (this.cur.value == 'fun' && this.cur.type == t.keyword) { return this.parse_fun_call();
+        } else {
+            this.error(`${this.cur.type} is a non assignable value`, null, this.cur, t.not_important); process.exit(1);
         }
-
-        if (value === null) for (let i=0; i < types.length; i ++) { if (this.cur.type === types[i]) { this.go(); return this.prev; } }
-        else for (let i=0; i < types.length; i ++) { if (this.cur.type === types[i] && this.cur.value === value) { this.go(); return this.prev; } }
-
-        this.error(value, types); this.go(); return ( this.prev );
     }
-    parse_assignment(v: string) {
-        let start = this.eat(v, token_type.keyword);
-        let name = this.eat(null, token_type.identifier);
-        this.eat("=", token_type.assign);
-        let value = this.eat(null, token_type.identifier, token_type.string, token_type.number);
-        let end = this.eat(";", token_type.semi_colon);
+    parse_fun_def() {
+        this.eat("fun", t.keyword);
+        let name  = this.eat(null, t.identifier);
+        let args = this.parse_list(")");
+        let statements = this.parse_block();
 
-        return { type: v+"-assignment", name: name, value: value, line: start.line, col: start.col, len: end.col - name.col };
+        return { type: 'fun-def', name, args, statements, line: name.line, col: name.col - 4 }
+    }
+    parse_return() {
+        let start = this.eat("return", t.keyword);
+        let value = this.literal();
+
+        return { type: 'return', value, line: start.line, col: start.col, len: value.col - start.col }
     }
     parse_block() { let statements: any[] = [];
-        this.eat("[", token_type.left_brace);
-        let body: any[] = [];
+        this.eat("[", t.l_brace);
+        while (true) { 
+            if (this.cur.value == ']') break;
+            if (this.index >= this.tokens.length || this.cur.type == t.EOF) { this.error(`End of file reached without block closing characture ']'`, null, this.cur, t.r_brace); process.exit(1); }
+            statements.push(this.parse_statement());
+        }
+        this.eat("]", t.r_brace);
+
+        return statements;
+    }
+    parse_import() {
+        let start = this.eat("import", t.keyword);
+        let path  = this.eat(null, t.string);
+
+        return { type: 'import', path, line: start.line, col: start.col, len: path.col - start.col }
+    }
+    parse_fun_call() {
+        let name = this.eat(null, t.identifier);
+        let args: any[] = this.parse_list(")");
+
+        return { type: 'fun-call', name, args, line: name.line, col: name.col, len: this.prev.col - name.col }
+    }
+    parse_list(end: string) { let array = [];
+        this.advance();
         while (true) {
-            if (this.index >= this.tokens.length - 1) {
-                this.error(null, [], this.prev, `Unexpected end of file`); process.exit(1);
-            }
-            if (this.cur.value == "]") break;
-            body.push(this.parse_statement());
-        }
-        this.eat("]", token_type.right_brace);
-        return body;
+            if (this.cur.value == end) { break;
+            } else if (this.cur.value == ',') { this.advance();
+                if (this.cur.type != t.r_paren) array.push(this.literal());
+            } else { array.push(this.literal()); }
+        } this.advance(); return [...array];
     }
-    parse_function_define() {
-        let start = this.eat("fun", token_type.keyword);
-        let name = this.eat(null, token_type.identifier);
-        let args = this.parse_args();
-        this.eat("=>", token_type.arrow);
-        let body = this.parse_block();
+    parse_assign(type: string) {
+        let start = this.eat(type, t.keyword).col;
+        let name = this.eat(null, t.identifier);
+        this.eat("=", t.equals);
+        let value = this.literal();
 
-        return { type: 'fun define', name: name, args: args, statements: body, start: { col: start.col, line: start.line }, end: { col: this.prev.col, line: this.prev.line } }
+        return { type: `${type}-assign`, name, value, line: name.line, col: name.col, len: this.prev.col - start };
     }
-    parse_condition() {
-        let left = this.eat(null, token_type.identifier, token_type.number, token_type.string);
-        let operatoer = this.eat(null, token_type.compare);
-        let right = this.eat(null, token_type.identifier, token_type.number, token_type.string);
+    parse_reassign() {
+        let name = this.eat(null, t.identifier);
+        this.eat("=", t.equals);
+        let value = this.literal();
 
-        return { type: "compare", left, right, operatoer }
+        return { type: 're-assignment', name, value, line: name.line, col: name.col, len: this.prev.col - name.col }
     }
-    parse_if_statement() {
-        this.eat("if", token_type.keyword); let start = "[";
-        let compare = this.parse_condition();
-        let body: any; let else_body: any | null = null;
-        if (this.cur.value === start) {
-            body = this.parse_block();
-        } else { body = this.parse_statement(); }
-        if (this.cur.value === "else" && this.cur.type === token_type.keyword) {
-            this.eat("else", token_type.keyword); if (this.cur.value === start) {
-                else_body = this.parse_block();
-            } else { else_body = this.parse_statement(); }
+    parse_expr() {
+        let left  = this.eat(null, t.number);
+        let op    = this.eat(null, t.operator);
+        let right = this.eat(null, t.number);
 
-            return { type: 'if', condition: compare, if: body, else: else_body, line: compare.left.line, col: compare.left.col }
-        }
-        return { type: 'if', condition: compare, if: body, line: compare.left.line, col: compare.left.col }
+        return { type: 'expression', left, operator: op, right, line: left.line, col: left.col }
     }
-    parse_args() { let array: any[] = [];
-        this.eat("(", token_type.left_paren);
-        while (true) {
-            if (this.cur.type === token_type.identifier ||
-                this.cur.type === token_type.string ||
-                this.cur.type === token_type.number) { array.push(this.cur); this.go(); }
-            if (this.cur.value === ",") this.go();
-            if (this.cur.value === ")") break;
-        }
-        this.eat(")", token_type.right_paren);
-
-        return array;
-    }
-    parse_function_call() {
-        let name = this.eat(null, token_type.identifier);
-        let args = this.parse_args();
-        this.eat(";", token_type.semi_colon);
-
-        return { type: 'fun call', name: name, args: args, line: name.line, col: name.col, len: this.prev.col - name.col }
-    }
-    parse_statement() {
-        switch (true) {
-            case this.cur.value === "set" || this.cur.value === "var" && this.cur.type === token_type.keyword:
-                return this.parse_assignment(this.cur.value);
-            case this.cur.type === token_type.identifier && this.next.type === token_type.left_paren:
-                return this.parse_function_call();
-            case this.cur.type === token_type.keyword && this.cur.value === "fun":
-                return this.parse_function_define();
-            case this.cur.value === "if" && this.cur.type === token_type.keyword:
-                return this.parse_if_statement();
-            case this.cur.value === '\0': return "EOF"
-            default: return { type: "unknown", value: this.cur.value, line: this.cur.line, col: this.cur.col, len: this.cur.len }
-        }
+    parse_statement() { let statement: any;
+        if (this.cur.value == 'set' || this.cur.value == 'var' && this.cur.type == t.keyword) {
+            statement = this.parse_assign(this.cur.value); this.eat(";", t.semi_colon); return statement;
+        } else if (this.cur.type == t.identifier && this.next.value == '(') {
+            statement = this.parse_fun_call(); this.eat(";", t.semi_colon); return statement;
+        } else if (this.cur.type == t.keyword && this.cur.value == 'fun') {
+            return this.parse_fun_def();
+        } else if (this.cur.value == "return" && this.cur.type == t.keyword) {
+            statement = this.parse_return(); this.eat(";", t.semi_colon); return statement;
+        } else if (this.cur.value == "import" && this.cur.type == t.keyword) {
+            statement = this.parse_import(); this.eat(";", t.semi_colon); return statement;
+        } else if (this.cur.type == t.identifier && this.next.type == t.equals) {
+            statement = this.parse_reassign(); this.eat(";", t.semi_colon); return statement;
+        } else { console.log(JSON.stringify(this.cur)); this.advance(); }
     }
     parse() {
-        while (this.index < this.tokens.length - 1) {
-            let statement = this.parse_statement();
-            if (statement === "EOF") break;
-            this.statements.push(statement)
-        }
-        if (this.errors == 0) { fs.writeFileSync(this.lexer.filename + ".json", JSON.stringify(this.statements, null, 4)); 
-        } else {
-            console.log(`\n\x1b[31mCompilation failed due to previous errors.\x1b[0m`);
-        }
+        while (this.index <= this.tokens.length && this.cur.type != t.EOF) {
+            this.statements.push(this.parse_statement());
+        } return this.statements;
     }
 }

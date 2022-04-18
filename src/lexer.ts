@@ -1,96 +1,105 @@
 import fs from 'fs';
 
-export enum token_type {
-    start,
-    identifier, keyword,
-    string, number,
+export enum t {
+    identifier, string,
+    keyword, number,
+    operator, compare,
 
-    left_brace,
-    right_brace,
-    left_paren,
-    right_paren,
-
-    assign,
-    arrow,
-    dot,
+    l_paren,
+    r_paren,
+    l_brace,
+    r_brace,
+    
+    equals, arrow,
     semi_colon,
-    comma,
-    undefined, EOF,
-    compare
+    comma, EOF,
+    not_important
 }
 
 export class token {
-    type: token_type; value: string; line: number; col: number; len: number;
-    constructor(type: token_type, value: string, line: number, col: number) {
-        this.type = type; this.value = value; this.line = line; this.col = col; this.len = this.value.length;
+    type: t; value: string; line: number; col: number; len: number;
+    constructor(type: t, value: string, line: number, col: number) {
+        this.type = type; this.value = value; this.line = line; this.col = col; this.len = value.length;
     }
-    new() { return {type: this.type, value: this.value, pos: {line: this.line, col: this.col}, len: this.len}; }
-    toString() { return `${token_type[this.type].replace("_", " ")}` }
+    toString(): string {
+        switch (this.type) {
+            case t.identifier:  return "identifier";
+            case t.string:      return "string";
+            case t.keyword:     return "keyword";
+            case t.number:      return "number";
+            case t.operator:    return "operator";
+            case t.compare:     return "compare";
+        
+            case t.l_paren:     return "left paren";
+            case t.r_paren:     return "right paren";
+            case t.l_brace:     return "left brace";
+            case t.r_brace:     return "right brace";
+            
+            case t.equals:      return "equals";
+            case t.arrow:       return "arrow";
+            case t.semi_colon:  return "semi colon";
+            case t.comma:       return "comma";
+            case t.EOF:         return "End of file";
+            case t.not_important:return "not important"
+        }
+    }
 }
 
+const isalnum = (char: string) => { return char.match(/[a-zA-Z_0-9]/) != null && char.match(/[a-zA-Z_0-9]/) != undefined; }
+
 export class Lexer {
-    filename: string; index: number = 0; line: number = 1; col: number = 1;
-    lines: string[]; cur: string; chars: string[]; tokens: token[];
+    content: string; index: number; cur: string; line: number; col: number; filename: string; tokens: token[];
+    keywords: string[] = ["set", "var", "fun", "if", "else", "return", "import"];
     constructor(filename: string) {
-        this.filename = filename; let content = fs.readFileSync(this.filename).toString(); this.tokens = [];
-        this.lines = content.split("\n"); this.chars = content.split(""); this.cur = this.chars[this.index];
+        this.filename = filename; this.index = 0; this.content = fs.readFileSync(filename).toString() + '\0';
+        this.cur = this.content[this.index]; this.line = 1; this.col = 1; this.tokens = [];
     }
-    add(type: token_type, value: string, col: number) {
-        const tok = new token(type, value, this.line, col);
-        this.tokens.push(tok);
-    }
-    next(steps: number = 1): undefined { 
-        this.index += steps; this.col += steps; this.cur = this.chars[this.index];
-        if (this.index >= this.chars.length) this.cur = '\0'; return;
+    add(type: t, value: string, col: number) { this.tokens.push(new token(type, value, this.line, col)); }
+    next(steps: number = 1) { this.index += steps; this.col += steps;
+        if (this.index >= this.content.length) { this.cur = '\0'; return; }
+        this.cur = this.content[this.index]; return;
     }
     tokenize() { let col = this.col;
-        if(this.cur.match(/[a-zA-Z_]/)) { let buffer: string = "";
-            while (this.cur.match(/[a-zA-Z_0-9]/)) { buffer += this.cur; this.next(); }
-            switch (buffer) { 
-                case "set": case "var": case "if": case "else": case "fun": this.add(token_type.keyword, buffer, col); break;
-                default: this.add(token_type.identifier, buffer, col); break;
-            }
+        if (this.cur.match(/[a-zA-Z_]/)) { let buffer: string = "";
+            while (isalnum(this.cur)) { buffer += this.cur; this.next(); }
+            if (this.keywords.includes(buffer)) { this.add(t.keyword, buffer, col);
+            } else { this.add(t.identifier, buffer, col); };
         } else if (this.cur.match(/[0-9]/)) { let buffer: string = "";
             while (this.cur.match(/[0-9]|\./)) { buffer += this.cur; this.next(); }
-            this.add(token_type.number, buffer, col);
-        } else if (this.cur === '"') { this.next(); let buffer: string = "";
-            while (this.cur !== '"') {
-                if (this.cur === '\\') { this.next(); buffer += this.cur; }
-                buffer += this.cur; this.next(); 
-            } this.next(); this.add(token_type.string, buffer, col+1);
-        } else if (this.cur === '\0') { return "EOF";
-        } else switch (this.cur) {
-            case "[": this.add(token_type.left_brace,  this.cur, col); this.next(); break;
-            case "]": this.add(token_type.right_brace, this.cur, col); this.next(); break;
-            case "(": this.add(token_type.left_paren,  this.cur, col); this.next(); break;
-            case ")": this.add(token_type.right_paren, this.cur, col); this.next(); break;
-            case ";": this.add(token_type.semi_colon,  this.cur, col); this.next(); break;
-            case ",": this.add(token_type.comma,       this.cur, col); this.next(); break;
-            case ">": case "<": { let bufr = this.cur;
-                if (this.chars[this.index + 1] === '=') bufr += this.cur; this.next();
-                this.add(token_type.compare, bufr, col); break;
+            this.add(t.number, buffer, col);
+        } else if (this.cur == '"') { this.next(); let buffer: string = "";
+            while (this.cur != '"') {
+                if (this.cur == '\\') { buffer += this.cur; this.next(); }
+                if (this.index >= this.content.length) { console.log(`Unexpected end of file without string terminating characture '\"' ---> ${this.filename}[${this.line}:${col}]`); }
+                buffer += this.cur; this.next();
+            } this.next(); this.add(t.string, buffer, col);
+        } else {
+            switch (this.cur) {
+                case '[': this.add(t.l_brace, this.cur, col); this.next();      break;
+                case ']': this.add(t.r_brace, this.cur, col); this.next();      break;
+                case '(': this.add(t.l_paren, this.cur, col); this.next();      break;
+                case ')': this.add(t.r_paren, this.cur, col); this.next();      break;
+                case ';': this.add(t.semi_colon, this.cur, col); this.next();   break;
+                case ',': this.add(t.comma, this.cur, col);   this.next();      break;
+                case '-': case '+': case '/': case '*': 
+                          this.add(t.operator, this.cur, col);   this.next();   break;
+                case ' ': this.next();                                          break;
+                case '\n': this.next(); this.col = 1; this.line += 1;           break;
+                case '\r': this.next(); this.col -= 1;                          break;
+                case '=':
+                    if (this.content[this.index + 1] == '>') { this.next(2);
+                        this.add(t.arrow, "=>", col); break;
+                    } else if (this.content[this.index + 1] == '=') { this.next(2);
+                        this.add(t.compare, "==", col); break;
+                    } else { this.next(); this.add(t.equals, "=", col); break; }
+                case '\0': this.add(t.EOF, '\0', col); return t.EOF;
+                default:   console.log(`Unknown characture ${JSON.stringify(this.cur)} ---> ${this.filename}[${this.line}:${col}]`); this.next(); break;
             }
-            case '=': {
-                if (this.chars[this.index + 1] === '>') { this.add(token_type.arrow,     "=>", col); this.next(2); break; }
-                if (this.chars[this.index + 1] === '=') { this.add(token_type.compare,   "==", col); this.next(2); break; }
-                this.add(token_type.assign, "=", col);
-            }
-            case ' ':  this.next();                                                 break; 
-            case '\n': this.next(); this.col = 1; this.line += 1;                   break;
-            default: console.log(JSON.stringify(this.cur)); this.next();            break;
         }
     }
-    lex() { 
-        let chars = [];
-        for (let i of this.chars) { if (i !== '\r') chars.push(i); }
-        
-        this.chars = chars;let col = 0;
+    lex() {
         while (true) {
-            let addedToken = this.tokenize();
-            if (addedToken === "EOF") break;
-            col = this.tokens[this.tokens.length - 1].col;
-        }
-        this.add(token_type.EOF, '\0', this.lines[this.lines.length -1].length + 1);
-        return this.tokens;
+            let token = this.tokenize(); if (token == t.EOF) break;
+        } return this.tokens;
     }
 }

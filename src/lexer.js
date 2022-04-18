@@ -3,84 +3,95 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Lexer = exports.token = exports.token_type = void 0;
+exports.Lexer = exports.token = exports.t = void 0;
 const fs_1 = __importDefault(require("fs"));
-var token_type;
-(function (token_type) {
-    token_type[token_type["start"] = 0] = "start";
-    token_type[token_type["identifier"] = 1] = "identifier";
-    token_type[token_type["keyword"] = 2] = "keyword";
-    token_type[token_type["string"] = 3] = "string";
-    token_type[token_type["number"] = 4] = "number";
-    token_type[token_type["left_brace"] = 5] = "left_brace";
-    token_type[token_type["right_brace"] = 6] = "right_brace";
-    token_type[token_type["left_paren"] = 7] = "left_paren";
-    token_type[token_type["right_paren"] = 8] = "right_paren";
-    token_type[token_type["assign"] = 9] = "assign";
-    token_type[token_type["arrow"] = 10] = "arrow";
-    token_type[token_type["dot"] = 11] = "dot";
-    token_type[token_type["semi_colon"] = 12] = "semi_colon";
-    token_type[token_type["comma"] = 13] = "comma";
-    token_type[token_type["undefined"] = 14] = "undefined";
-    token_type[token_type["EOF"] = 15] = "EOF";
-    token_type[token_type["compare"] = 16] = "compare";
-})(token_type = exports.token_type || (exports.token_type = {}));
+var t;
+(function (t) {
+    t[t["identifier"] = 0] = "identifier";
+    t[t["string"] = 1] = "string";
+    t[t["keyword"] = 2] = "keyword";
+    t[t["number"] = 3] = "number";
+    t[t["operator"] = 4] = "operator";
+    t[t["compare"] = 5] = "compare";
+    t[t["l_paren"] = 6] = "l_paren";
+    t[t["r_paren"] = 7] = "r_paren";
+    t[t["l_brace"] = 8] = "l_brace";
+    t[t["r_brace"] = 9] = "r_brace";
+    t[t["equals"] = 10] = "equals";
+    t[t["arrow"] = 11] = "arrow";
+    t[t["semi_colon"] = 12] = "semi_colon";
+    t[t["comma"] = 13] = "comma";
+    t[t["EOF"] = 14] = "EOF";
+    t[t["not_important"] = 15] = "not_important";
+})(t = exports.t || (exports.t = {}));
 class token {
     constructor(type, value, line, col) {
         this.type = type;
         this.value = value;
         this.line = line;
         this.col = col;
-        this.len = this.value.length;
+        this.len = value.length;
     }
-    new() { return { type: this.type, value: this.value, pos: { line: this.line, col: this.col }, len: this.len }; }
-    toString() { return `${token_type[this.type].replace("_", " ")}`; }
+    toString() {
+        switch (this.type) {
+            case t.identifier: return "identifier";
+            case t.string: return "string";
+            case t.keyword: return "keyword";
+            case t.number: return "number";
+            case t.operator: return "operator";
+            case t.compare: return "compare";
+            case t.l_paren: return "left paren";
+            case t.r_paren: return "right paren";
+            case t.l_brace: return "left brace";
+            case t.r_brace: return "right brace";
+            case t.equals: return "equals";
+            case t.arrow: return "arrow";
+            case t.semi_colon: return "semi colon";
+            case t.comma: return "comma";
+            case t.EOF: return "End of file";
+            case t.not_important: return "not important";
+        }
+    }
 }
 exports.token = token;
+const isalnum = (char) => { return char.match(/[a-zA-Z_0-9]/) != null && char.match(/[a-zA-Z_0-9]/) != undefined; };
 class Lexer {
     constructor(filename) {
+        this.keywords = ["set", "var", "fun", "if", "else", "return", "import"];
+        this.filename = filename;
         this.index = 0;
+        this.content = fs_1.default.readFileSync(filename).toString() + '\0';
+        this.cur = this.content[this.index];
         this.line = 1;
         this.col = 1;
-        this.filename = filename;
-        let content = fs_1.default.readFileSync(this.filename).toString();
         this.tokens = [];
-        this.lines = content.split("\n");
-        this.chars = content.split("");
-        this.cur = this.chars[this.index];
     }
-    add(type, value, col) {
-        const tok = new token(type, value, this.line, col);
-        this.tokens.push(tok);
-    }
+    add(type, value, col) { this.tokens.push(new token(type, value, this.line, col)); }
     next(steps = 1) {
         this.index += steps;
         this.col += steps;
-        this.cur = this.chars[this.index];
-        if (this.index >= this.chars.length)
+        if (this.index >= this.content.length) {
             this.cur = '\0';
+            return;
+        }
+        this.cur = this.content[this.index];
         return;
     }
     tokenize() {
         let col = this.col;
         if (this.cur.match(/[a-zA-Z_]/)) {
             let buffer = "";
-            while (this.cur.match(/[a-zA-Z_0-9]/)) {
+            while (isalnum(this.cur)) {
                 buffer += this.cur;
                 this.next();
             }
-            switch (buffer) {
-                case "set":
-                case "var":
-                case "if":
-                case "else":
-                case "fun":
-                    this.add(token_type.keyword, buffer, col);
-                    break;
-                default:
-                    this.add(token_type.identifier, buffer, col);
-                    break;
+            if (this.keywords.includes(buffer)) {
+                this.add(t.keyword, buffer, col);
             }
+            else {
+                this.add(t.identifier, buffer, col);
+            }
+            ;
         }
         else if (this.cur.match(/[0-9]/)) {
             let buffer = "";
@@ -88,73 +99,58 @@ class Lexer {
                 buffer += this.cur;
                 this.next();
             }
-            this.add(token_type.number, buffer, col);
+            this.add(t.number, buffer, col);
         }
-        else if (this.cur === '"') {
+        else if (this.cur == '"') {
             this.next();
             let buffer = "";
-            while (this.cur !== '"') {
-                if (this.cur === '\\') {
-                    this.next();
+            while (this.cur != '"') {
+                if (this.cur == '\\') {
                     buffer += this.cur;
+                    this.next();
+                }
+                if (this.index >= this.content.length) {
+                    console.log(`Unexpected end of file without string terminating characture '\"' ---> ${this.filename}[${this.line}:${col}]`);
                 }
                 buffer += this.cur;
                 this.next();
             }
             this.next();
-            this.add(token_type.string, buffer, col + 1);
+            this.add(t.string, buffer, col);
         }
-        else if (this.cur === '\0') {
-            return "EOF";
-        }
-        else
+        else {
             switch (this.cur) {
-                case "[":
-                    this.add(token_type.left_brace, this.cur, col);
+                case '[':
+                    this.add(t.l_brace, this.cur, col);
                     this.next();
                     break;
-                case "]":
-                    this.add(token_type.right_brace, this.cur, col);
+                case ']':
+                    this.add(t.r_brace, this.cur, col);
                     this.next();
                     break;
-                case "(":
-                    this.add(token_type.left_paren, this.cur, col);
+                case '(':
+                    this.add(t.l_paren, this.cur, col);
                     this.next();
                     break;
-                case ")":
-                    this.add(token_type.right_paren, this.cur, col);
+                case ')':
+                    this.add(t.r_paren, this.cur, col);
                     this.next();
                     break;
-                case ";":
-                    this.add(token_type.semi_colon, this.cur, col);
+                case ';':
+                    this.add(t.semi_colon, this.cur, col);
                     this.next();
                     break;
-                case ",":
-                    this.add(token_type.comma, this.cur, col);
+                case ',':
+                    this.add(t.comma, this.cur, col);
                     this.next();
                     break;
-                case ">":
-                case "<": {
-                    let bufr = this.cur;
-                    if (this.chars[this.index + 1] === '=')
-                        bufr += this.cur;
+                case '-':
+                case '+':
+                case '/':
+                case '*':
+                    this.add(t.operator, this.cur, col);
                     this.next();
-                    this.add(token_type.compare, bufr, col);
                     break;
-                }
-                case '=': {
-                    if (this.chars[this.index + 1] === '>') {
-                        this.add(token_type.arrow, "=>", col);
-                        this.next(2);
-                        break;
-                    }
-                    if (this.chars[this.index + 1] === '=') {
-                        this.add(token_type.compare, "==", col);
-                        this.next(2);
-                        break;
-                    }
-                    this.add(token_type.assign, "=", col);
-                }
                 case ' ':
                     this.next();
                     break;
@@ -163,27 +159,42 @@ class Lexer {
                     this.col = 1;
                     this.line += 1;
                     break;
+                case '\r':
+                    this.next();
+                    this.col -= 1;
+                    break;
+                case '=':
+                    if (this.content[this.index + 1] == '>') {
+                        this.next(2);
+                        this.add(t.arrow, "=>", col);
+                        break;
+                    }
+                    else if (this.content[this.index + 1] == '=') {
+                        this.next(2);
+                        this.add(t.compare, "==", col);
+                        break;
+                    }
+                    else {
+                        this.next();
+                        this.add(t.equals, "=", col);
+                        break;
+                    }
+                case '\0':
+                    this.add(t.EOF, '\0', col);
+                    return t.EOF;
                 default:
-                    console.log(JSON.stringify(this.cur));
+                    console.log(`Unknown characture ${JSON.stringify(this.cur)} ---> ${this.filename}[${this.line}:${col}]`);
                     this.next();
                     break;
             }
+        }
     }
     lex() {
-        let chars = [];
-        for (let i of this.chars) {
-            if (i !== '\r')
-                chars.push(i);
-        }
-        this.chars = chars;
-        let col = 0;
         while (true) {
-            let addedToken = this.tokenize();
-            if (addedToken === "EOF")
+            let token = this.tokenize();
+            if (token == t.EOF)
                 break;
-            col = this.tokens[this.tokens.length - 1].col;
         }
-        this.add(token_type.EOF, '\0', this.lines[this.lines.length - 1].length + 1);
         return this.tokens;
     }
 }

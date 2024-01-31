@@ -59,7 +59,7 @@ impl Lexer {
       format!("{}[{}:{}]", self.filename, self.coord[0], self.coord[1])
    }
    fn warn(&self, info: &str) {
-      println!("error:{} {} {}", "tokenizer".colorize(36), info, self.info())
+      println!("error:{} --> {}: {}", "tokenizer".colorize(36), self.info(), info)
    }
 
    fn scan(&mut self) {

@@ -1,3 +1,5 @@
+`
+
 fun main(argc: num, argv: str[]) -> {
    print(123);
 }

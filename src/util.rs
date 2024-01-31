@@ -1,4 +1,4 @@
-use crate::token::{Class, Token};
+use crate::{parser::Parser, token::Token};
 
 pub trait Colorize<T> {
    fn colorize(&self, num: u8) -> String;
@@ -10,23 +10,63 @@ impl<T> Colorize<T> for T where T:ToString {
    }
 }
 
-pub trait Is<X> {
-   fn is(&self, rhs: X) -> bool;
+pub trait Then<X, Y> {
+   fn then(self, parser: &Parser, info: X, indecies: Y, syntax: &[&'static [&'static str]]) -> Token;
 }
 
-impl Is<(&str, Class)> for Token {
-   fn is(&self, rhs: (&str, Class)) -> bool {
-      self.class == rhs.1 && &self.value == rhs.0
+impl<X, Y> Then<X, Y> for Result<Token, Token> where X:ToString, Y:ToVec<[usize; 2]>{
+   fn then(self, parser: &Parser, info: X, indecies: Y, syntax: &[&'static [&'static str]]) -> Token {
+      if self.is_ok() { return self.unwrap(); }
+      let token = self.unwrap_err();
+
+      parser.err(token.clone(), info, indecies, syntax);
+
+      return token;
    }
 }
-impl Is<&str> for Token {
-   fn is(&self, rhs: &str) -> bool {
-      &self.value == rhs
+
+pub trait Fmt {
+   fn fmt(&self, syntax: &[&[&str]]) -> Vec<String>;
+}
+
+impl<T> Fmt for T where T:ToVec<[usize; 2]> {
+   fn fmt(&self, syntax: &[&[&str]]) -> Vec<String> {
+      let mut outer = vec![];
+      for inner in self.to_vec() {
+         let mut vec = vec![];
+
+         for i in 0..syntax[inner[0]].len() {
+            if i == inner[1]
+               { vec.push(syntax[inner[0]][i].colorize(7)); }
+            else 
+               { vec.push(syntax[inner[0]][i].to_string()); }
+         }
+   
+         outer.push(vec.join(" "));
+      }
+      return outer;
    }
 }
-impl Is<Class> for Token {
-   fn is(&self, rhs: Class) -> bool {
-      self.class == rhs
+
+pub trait ToVec<T> {
+   fn to_vec(&self) -> Vec<T>;
+}
+
+impl ToVec<[usize; 2]> for [usize; 2] {
+   fn to_vec(&self) -> Vec<[usize; 2]> {
+      return vec![self.clone()];
+   }
+}
+
+impl ToVec<[usize; 2]> for &[[usize; 2]] {
+   fn to_vec(&self) -> Vec<[usize; 2]> {
+      return self.iter().cloned().collect();
+   }
+}
+
+impl ToVec<[usize; 2]> for Vec<[usize; 2]> {
+   fn to_vec(&self) -> Vec<[usize; 2]> {
+      return self.clone()
    }
 }
 
@@ -34,7 +74,7 @@ pub trait Split {
    fn split(&self, seq: char) -> Vec<String>;
 }
 
-impl<Y> Split for Y where Y:ToString {
+impl<X> Split for X where X:ToString {
    fn split(&self, seq: char) -> Vec<String> {
       let mut array: Vec<String> = vec![];
       let mut value = String::new();

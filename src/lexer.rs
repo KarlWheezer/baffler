@@ -74,7 +74,7 @@ impl Lexer {
             
             let class = match value.as_str() {
                "fun" | "set" | "var" | "if" |
-               "use" | "yeild" => Class::Keyword,
+               "use" | "pass" => Class::Keyword,
                "true" | "false" => Class::Boolean,
                _ => Class::Identifier
             };

@@ -143,7 +143,7 @@ impl Lexer {
          ';' => self.stack(Class::Semi),
 
          '+' | '*' | '/' => {
-            self.stack(Class::Operator);
+            self.stack(Class::MathAgent);
          }
 
          '<' | '>' => {
@@ -154,7 +154,7 @@ impl Lexer {
                self.next(); value.push('=');
             }
 
-            self.push(Class::Comparator, value, index);
+            self.push(Class::BoolAgent, value, index);
          },
 
          '-' => {
@@ -163,7 +163,7 @@ impl Lexer {
             if self.char() == '>' {
                self.push(Class::Arrow, "->".to_string(), index); self.next();
             } else {
-               self.push(Class::Operator, "-".to_string(), index);
+               self.push(Class::MathAgent, "-".to_string(), index);
             }
          },
 
@@ -172,7 +172,7 @@ impl Lexer {
          '!' => {
             let index = self.coord; self.next();
             if self.char() == '=' {
-               self.push(Class::Comparator, "!=".to_string(), index); self.next();
+               self.push(Class::BoolAgent, "!=".to_string(), index); self.next();
             } else {
                self.push(Class::Bang, "!".to_string(), index);
             }
@@ -182,7 +182,7 @@ impl Lexer {
             let index = self.coord;
             self.next();
             if self.char() == '=' {
-               self.push(Class::Comparator, "==".to_string(), index);
+               self.push(Class::BoolAgent, "==".to_string(), index);
                self.next();
             } else {
                self.push(Class::Assign, "=".to_string(), index)

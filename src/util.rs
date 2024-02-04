@@ -1,92 +1,85 @@
+use std::fmt::Display;
 use crate::{parser::Parser, token::Token};
 
-pub trait Colorize<T> {
-   fn colorize(&self, num: u8) -> String;
-}
+#[allow(non_camel_case_types)]
+pub type syntax<'a> = (&'a[&'a str], usize);
 
-impl<T> Colorize<T> for T where T:ToString {
-   fn colorize(&self, num: u8) -> String {
-      return format!("\x1b[{}m{}\x1b[0m", num, self.to_string());
-   }
-}
-
-pub trait Then<X, Y> {
-   fn then(self, parser: &Parser, info: X, indecies: Y, syntax: &[&'static [&'static str]]) -> Token;
-}
-
-impl<X, Y> Then<X, Y> for Result<Token, Token> where X:ToString, Y:ToVec<[usize; 2]>{
-   fn then(self, parser: &Parser, info: X, indecies: Y, syntax: &[&'static [&'static str]]) -> Token {
-      if self.is_ok() { return self.unwrap(); }
-      let token = self.unwrap_err();
-
-      parser.err(token.clone(), info, indecies, syntax);
-
-      return token;
-   }
-}
-
-pub trait Fmt {
-   fn fmt(&self, syntax: &[&[&str]]) -> Vec<String>;
-}
-
-impl<T> Fmt for T where T:ToVec<[usize; 2]> {
-   fn fmt(&self, syntax: &[&[&str]]) -> Vec<String> {
-      let mut outer = vec![];
-      for inner in self.to_vec() {
-         let mut vec = vec![];
-
-         for i in 0..syntax[inner[0]].len() {
-            if i == inner[1]
-               { vec.push(syntax[inner[0]][i].colorize(7)); }
-            else 
-               { vec.push(syntax[inner[0]][i].to_string()); }
-         }
-   
-         outer.push(vec.join(" "));
+pub fn fmt(syntax: syntax) -> String {
+   let mut buffer = vec![];
+   for i in 0..syntax.0.len() {
+      match i == syntax.1 {
+         true => buffer.push(syntax.0[i].colorize(7)),
+         false => buffer.push(syntax.0[i].to_string())
       }
-      return outer;
-   }
+   } return buffer.join(" ");
 }
 
-pub trait ToVec<T> {
-   fn to_vec(&self) -> Vec<T>;
+pub trait Colorize<T> {
+   fn colorize(&self, num: usize) -> String;
 }
-
-impl ToVec<[usize; 2]> for [usize; 2] {
-   fn to_vec(&self) -> Vec<[usize; 2]> {
-      return vec![self.clone()];
-   }
-}
-
-impl ToVec<[usize; 2]> for &[[usize; 2]] {
-   fn to_vec(&self) -> Vec<[usize; 2]> {
-      return self.iter().cloned().collect();
-   }
-}
-
-impl ToVec<[usize; 2]> for Vec<[usize; 2]> {
-   fn to_vec(&self) -> Vec<[usize; 2]> {
-      return self.clone()
+impl<S> Colorize<S> for S where S:Display {
+   fn colorize(&self, num: usize) -> String {
+      return format!("\x1b[{}m{}\x1b[0m", num, self.to_string());
    }
 }
 
 pub trait Split {
    fn split(&self, seq: char) -> Vec<String>;
 }
-
-impl<X> Split for X where X:ToString {
+impl<S> Split for S where S:ToString {
    fn split(&self, seq: char) -> Vec<String> {
       let mut array: Vec<String> = vec![];
-      let mut value = String::new();
-      let self_as_string: Vec<char> = self.to_string().chars().collect();
+      let mut buffer = "".to_string();
 
-      for i in 0..self_as_string.len() {
-         if self_as_string[i] == seq
-            { array.push(value); value = String::new(); }
-         else 
-            { value.push(self_as_string[i]); }
-      } 
+      for ch in self.to_string().chars().collect::<Vec<char>>() {
+         match ch == seq {
+            true => {array.push(buffer); buffer = "".to_string() },
+            false => buffer.push(ch)
+         }
+      } array.push(buffer); return array;
+   }
+}
+
+pub trait WithError<X> {
+   type Output;
+   fn with_error<Y>(self, p: &Parser, error: X, info: Y) -> Self::Output where Y:Display;
+}
+
+impl WithError<syntax<'_>> for Result<Token, Token> {
+   type Output = Token;
+
+   fn with_error<Y>(self, p: &Parser, error: syntax, info: Y) -> Self::Output where Y:Display {
+      if self.is_ok()
+         { return self.unwrap() }
+      let value = self.unwrap_err();
       
-      array.push(value); return array;
+      Parser::err(&value, info, fmt(error), p.info());
+
+      return value;
+   }
+}
+
+impl WithError<(&'_[&'_[&'_ str]], Vec<[usize; 2]>)> for Result<Token, Token> {
+   type Output = Token;
+
+   fn with_error<Y>(self, p: &Parser, error: (&[&[&str]], Vec<[usize; 2]>), info: Y) -> Self::Output where Y:Display {
+      if self.is_ok()
+         { return self.unwrap() }
+      let value = self.unwrap_err();
+
+      let mut full_syntax = vec![];
+      for i in 0..error.1.len() {
+         let arr = error.0[error.1[i][0]];
+         full_syntax.push(fmt((arr, error.1[i][1])));
+      }
+
+      let mut line = "".to_string();
+      for _ in 0..value.index[0].to_string().len() {
+         line.push(' ');
+      }
+      
+      Parser::err(&value, info, full_syntax.join(&format!("\n{} |   or: ", line)), p.info());
+
+      return value;
    }
 }

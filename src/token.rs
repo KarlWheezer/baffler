@@ -3,7 +3,7 @@ use lorust::kebab_case;
 use serde::Serialize;
 use crate::util::Colorize;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Token {
    pub class: Class,
    pub value: String,
@@ -16,16 +16,8 @@ impl Token {
 }
 impl Display for Token {
    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-      write!(f, "token{{ {}, {}, [{}:{}] }}", 
-         self.class.colorize(33), format!("{:?}", self.value).colorize(32), 
-         self.index[0].colorize(36), self.index[1].colorize(36)
-      )
-   }
-}
-
-impl Serialize for Token {
-   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-      serializer.serialize_str(&self.to_string())
+      write!(f, "Token{{ value: {:?}, class: {}, index: {:?} }}", self.value, self.class, self.index)
+      // write!(f, "{}", serde_json::to_string(&self).unwrap())
    }
 }
 
@@ -40,7 +32,7 @@ pub enum Class {
    LeftParen, RightParen,
 
    Dot, Comma, Semi, Colon,
-   Operator, Comparator, Bang,
+   MathAgent, BoolAgent, Bang,
    Assign, Arrow, Logic, Eof,
 }
 

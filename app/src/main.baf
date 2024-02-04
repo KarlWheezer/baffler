@@ -1,0 +1,5 @@
+main(maip[1])
+
+fun main() -> num {
+  disp(123);
+}

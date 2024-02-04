@@ -1,10 +1,12 @@
+use std::{fmt::write, path::Display};
+
 use serde::Serialize;
 
 use crate::token::Token;
 
 #[derive(Debug, Serialize)]
 pub enum Statement {
-   FunDefine { name: Token, args: Expression, pass: Expression, nodes: Vec<Self> },
+   FunDefine { name: Token, args: Vec<Expression>, pass: Expression, block: Vec<Self> },
 
    SetAssign { name: Token, value: Expression },
    VarAssign { name: Token, value: Expression },
@@ -32,11 +34,22 @@ pub enum Expression {
    Null
 }
 
+impl std::fmt::Display for Expression {
+   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+      write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
+   }
+}
+impl std::fmt::Display for Statement {
+   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+      write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
+   }
+}
+
 pub struct Syntax;
 impl Syntax {
-   pub const EXPR: &'static [&'static [&'static str]] = &[
+   pub const EXPR: &'_ [&'static [&'static str]] = &[
       &["{literal}"],
-      &["[", "{expression}", ",", "]"],
+      &["[", "{expression}","]"],
       &["{expression}", "[", "{expression}", "]"],
    
       &["{expression}", "{arithmetic-operator}", "{expression}"],
@@ -47,7 +60,7 @@ impl Syntax {
       &["{identifier}", ":", "{expression-type}"],
       &["{identifier}", "[]"]
    ];
-   pub const NODE: &'static [&'static [&'static str]] = &[
+   pub const NODE: &'_ [&'static [&'static str]] = &[
       &["fun", "{identifier}", "(", "{argdef-list}", ")", "->", "{identifier}", "{", "...", "}"],
       &["set", "{identifier}", "=", "{expression}", ";"],
       &["var", "{identifier}", "=", "{expression}", ";"],

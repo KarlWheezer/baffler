@@ -1,8 +1,5 @@
 use lexer::Lexer;
 use parser::Parser;
-use token::Class;
-use tree::Syntax;
-use util::WithError;
 
 mod lexer;
 mod token;
@@ -10,8 +7,9 @@ mod util;
 mod tree;
 mod parser;
 
+#[allow(unused_variables, unused_mut)]
 fn main() {
-	let lexer = Lexer::init();
-	let mut parser = Parser::init(lexer);
-	println!("{}", parser.collect_expression([0, 0]));
+	let lexer = Lexer::new()
+		.init(std::env::args().nth(1).unwrap());
+	let parser = Parser::new().init(lexer);
 }

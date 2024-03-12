@@ -1,7 +1,10 @@
 use std::fmt::Display;
 use lorust::kebab_case;
 use serde::Serialize;
+
 use crate::util::Colorize;
+
+pub type Tokens = Vec<Token>;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Token {
@@ -13,15 +16,23 @@ impl Token {
    pub fn new(class: Class, value: String, index: [usize; 2]) -> Self {
       Self { class, value, index }
    }
+   #[allow(unused)]
+   pub fn pretty_print(&self) -> String {
+      format!("token|{}:{} -> [{}:{}]|", 
+         self.class.colorize(34), 
+         format!("{:?}",self.value).colorize(32), 
+         self.index[0].colorize(33), 
+         self.index[1].colorize(33)
+      )
+   }
 }
 impl Display for Token {
    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-      write!(f, "Token{{ value: {:?}, class: {}, index: {:?} }}", self.value, self.class, self.index)
-      // write!(f, "{}", serde_json::to_string(&self).unwrap())
+      write!(f, "token|{}:\"{}\" -> {:?}|", self.class, self.value, self.index)
    }
 }
 
-
+#[allow(unused)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Class {
    Identifier, Keyword,

@@ -1,10 +1,11 @@
-use std::{fmt::write, path::Display};
-
 use serde::Serialize;
-
 use crate::token::Token;
 
+#[allow(unused)]
+pub type Program = Vec<Statement>;
+
 #[derive(Debug, Serialize)]
+#[allow(unused)]
 pub enum Statement {
    FunDefine { name: Token, args: Vec<Expression>, pass: Expression, block: Vec<Self> },
 
@@ -14,10 +15,10 @@ pub enum Statement {
 
    ImportPkg { package: Token },
    Expression { expr: Expression },
-
    Void
 }
 #[derive(Debug, Serialize)]
+#[allow(unused)]
 pub enum Expression {
    Literal { value: Token },
    Array { value: Vec<Self> },
@@ -28,9 +29,7 @@ pub enum Expression {
    Function { name: Token, args: Vec<Self> },
    SubExpr { base: Box<Self>, expr: Box<Self> },
 
-   ArgDefine { name: Token, value: Box<Self> },
-   Type { base: Token, arrays: usize },
-
+   ArgDefine { name: Token, kind: VarType },
    Null
 }
 
@@ -45,27 +44,5 @@ impl std::fmt::Display for Statement {
    }
 }
 
-pub struct Syntax;
-impl Syntax {
-   pub const EXPR: &'_ [&'static [&'static str]] = &[
-      &["{literal}"],
-      &["[", "{expression}","]"],
-      &["{expression}", "[", "{expression}", "]"],
-   
-      &["{expression}", "{arithmetic-operator}", "{expression}"],
-      &["{expression}", "{comparison-operator}", "{expression}"],
-      &["{identifier}", "(", "{expression-list}", ")"],
-      &["{expression}", ":", "{expression}"],
-   
-      &["{identifier}", ":", "{expression-type}"],
-      &["{identifier}", "[]"]
-   ];
-   pub const NODE: &'_ [&'static [&'static str]] = &[
-      &["fun", "{identifier}", "(", "{argdef-list}", ")", "->", "{identifier}", "{", "...", "}"],
-      &["set", "{identifier}", "=", "{expression}", ";"],
-      &["var", "{identifier}", "=", "{expression}", ";"],
-      &["{identifier}", "=", "{expression}", ";"],
-      &["use", "{identifier}", ";"],
-      &["{expression}", ";"]
-   ];
-}
+#[derive(Debug, Serialize)]
+pub struct VarType { base: Token, array: usize }

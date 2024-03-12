@@ -1,5 +1,3 @@
-main(maip[1])
-
-fun main() -> num {
-  disp(123);
-}
+fun main() {
+   disp(123 + 46);
+}``

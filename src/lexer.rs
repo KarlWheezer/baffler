@@ -1,4 +1,6 @@
-use crate::{token::{Class, Token}, util::Colorize};
+use std::fmt::Display;
+
+use crate::{token::{Class, Token, Tokens}, util::{Colorize, Split}};
 
 pub struct Lexer {
    index: usize,
@@ -6,36 +8,29 @@ pub struct Lexer {
 
    pub filename: String,
    pub source: String,
-   tokens: Vec<Token>,
+   tokens: Tokens,
+   errors: Vec<String>
 }
 
 impl Lexer {
-   pub fn init() -> Self {
-      let [filename, source] = Self::read_args();
+   pub fn new() -> Self {
       Self { 
          index: 0, coord: [1, 1], 
-         filename, source, 
-         tokens: vec![]
+         filename: String::new(), 
+         source: String::new(), 
+         tokens: vec![],
+         errors: vec![],
       }
    }
-   fn read_args() -> [String; 2]{
-      let name = std::env::args().nth(1);
-      let filename = if name.is_some() {
-         name.unwrap()
+   pub fn init(mut self, filename: String) -> Self {
+      self.filename = filename.clone();
+      self.source = if std::fs::read_to_string(&filename).is_ok() {
+         std::fs::read_to_string(&filename).unwrap()
       } else {
-         println!("error[S0]: no filename provided -> stdin[1:1]");
-         std::process::exit(-1);
+         "\0".to_string()
       };
 
-      let code = std::fs::read_to_string(&filename);
-      let source = if code.is_ok() {
-         code.unwrap()
-      } else {
-         println!("error[S1]: invalid filename provided -> stdin[1:2]");
-         std::process::exit(-1);
-      };
-
-      [filename, source]
+      return self;
    }
 
    fn char(&self) -> char {
@@ -45,8 +40,8 @@ impl Lexer {
    fn next(&mut self) {
       if self.char() == '\n'
          { self.coord[0] += 1; self.coord[1] = 1; }
-         self.coord[1] += 1;
-         self.index += 1;
+      self.coord[1] += 1;
+      self.index += 1;
    }
    fn push(&mut self, class: Class, value: String, index: [usize; 2]) {
       self.tokens.push(Token::new(class, value, index));
@@ -55,11 +50,8 @@ impl Lexer {
       self.push(class, self.char().to_string(), self.coord);
       self.next();
    }
-   fn info(&self) -> String {
-      format!("{}[{}:{}]", self.filename, self.coord[0], self.coord[1])
-   }
-   fn warn(&self, info: &str) {
-      println!("error:{} --> {}: {}", "tokenizer".colorize(36), self.info(), info)
+   fn error<S:Display>(&mut self, description: S) {
+      self.errors.push(format!("{}[{}:{}]:error - {}", self.filename, self.coord[0], self.coord[1], description));
    }
 
    fn scan(&mut self) {
@@ -91,7 +83,7 @@ impl Lexer {
                   dots += 1;
                   if dots < 1 { value.push('.'); self.next(); }
                   else {
-                     self.warn("too many '.' found"); self.next();
+                     self.error("too many '.' found while looking for number");
                   }
                }
                value.push(self.char());
@@ -115,11 +107,12 @@ impl Lexer {
                      '\\' => value.push('\\'),
                      '"' => value.push('"'),
                      _ => {
-                        self.warn(&format!("'\\{}' is not valid", self.char()));
+                        self.error(format!("\\{} is not a valid escape sequence", self.char()));
+                        self.next();
                      }
                   }
                } else if self.char() == '\0' {
-                  self.warn("eof found before string terminator '\"'");
+                  self.error("eof found before string deliminator '\"'");
                   std::process::exit(1);
                } else {
                   value.push(self.char());
@@ -192,14 +185,20 @@ impl Lexer {
          ' ' | '\n' => self.next(),
 
          _ => {
-            self.warn(&format!("unrecognized char {:?}", self.char()));self.next();
+            self.error(format!("unrecognized char {:?}", self.char()));
+            self.next();
          }
       };
    }
-   pub fn tokenize(mut self) -> Vec<Token> {
+   pub fn tokenize(&mut self) -> Result<Tokens, String> {
       while self.char() != '\0' && self.index < self.source.len()
-         { self.scan(); } self.stack(Class::Eof);
-      
-      return self.tokens;
+         { self.scan(); }       
+      self.stack(Class::Eof);
+
+      if self.errors.len() >= 1 {
+         return Err(self.errors.join("\n"))
+      } else {
+         return Ok(self.tokens.clone());
+      }
    }
 }
